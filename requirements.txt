@@ -1,0 +1,4 @@
+apache-airflow[celery,crypto,devel,password,postgres,ssh,async]
+numpy
+pandas
+requests

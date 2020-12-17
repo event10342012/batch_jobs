@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  web:
+    image: leo_pipeline
+    depends_on:
+      - db
+    volumes:
+      - ./src/batch_job/dags:/opt/airflow/dags
+      - ./src/batch_job/plugins:/opt/airflow/plugins
+    ports:
+      - 80:8080
+    command: webserver
+    healthcheck:
+      test: [ "CMD-SHELL", "[ -f /opt/airflow/airflow-webserver.pid ]" ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=leo120515
+      - POSTGRES_DB=airflow
+    volumes:
+      - ./pg_db:/var/lib/postgresql/data
+    expose:
+      - 5432
