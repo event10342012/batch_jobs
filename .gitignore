@@ -136,3 +136,4 @@ src/airflow.cfg
 src/unittests.cfg
 src/webserver_config.py
 src/airflow.db
+src/logs

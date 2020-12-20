@@ -11,7 +11,8 @@ DATA_DIR = os.path.join(get_airflow_home(), 'data')
 with DAG(dag_id='tw_daily_futures',
          start_date=datetime(2020, 12, 1),
          schedule_interval='@daily',
-         tags=['finance']) as dag:
+         tags=['finance'],
+         catchup=False) as dag:
     @dag.task
     def download_daily_futures_data():
         context = get_current_context()
