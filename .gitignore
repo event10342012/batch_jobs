@@ -130,3 +130,9 @@ dmypy.json
 
 # Pycharm
 .idea
+
+# airflow config
+src/airflow.cfg
+src/unittests.cfg
+src/webserver_config.py
+src/airflow.db

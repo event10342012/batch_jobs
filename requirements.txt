@@ -1,4 +1,6 @@
 apache-airflow[celery,crypto,devel,password,postgres,ssh,async]
 numpy
-pandas
-requests
+pandas~=1.1.5
+requests~=2.23.0
+
+pendulum~=2.1.2
