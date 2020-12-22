@@ -11,6 +11,8 @@ from airflow.providers.http.hooks.http import HttpHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
+from utils.timezone import convert_local_timezone
+
 DATA_DIR = os.path.join(get_airflow_home(), 'data')
 SQL_DIR = os.path.join(get_airflow_home(), 'sql')
 
@@ -29,7 +31,7 @@ with DAG(dag_id='tw_daily_futures',
     @dag.task
     def download_daily_futures_data():
         context = get_current_context()
-        ed = context.get('execution_date', None)
+        ed = convert_local_timezone(context.get('execution_date', None))
         if ed is None:
             raise ValueError('execution date is not given')
 
@@ -52,8 +54,8 @@ with DAG(dag_id='tw_daily_futures',
     def transform(file_path: str):
         """transform futures tick data to be o,h,l,c format"""
         context = get_current_context()
-        ed = context.get('execution_date', None)
-        ed = ed.strftime('')
+        ed = convert_local_timezone(context.get('execution_date', None))
+        ed = ed.strftime('%Y_%m_%d')
 
         cols = ['txn_date', 'commodity_id', 'expired_date', 'txn_time', 'price',
                 'volume', 'near_price', 'far_price', 'call_auction']
