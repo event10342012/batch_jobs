@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from zipfile import ZipFile
 
 import pandas as pd
 from airflow import DAG
@@ -7,8 +8,18 @@ from airflow.configuration import get_airflow_home
 from airflow.decorators import task
 from airflow.operators.python import get_current_context
 from airflow.providers.http.hooks.http import HttpHook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 DATA_DIR = os.path.join(get_airflow_home(), 'data')
+SQL_DIR = os.path.join(get_airflow_home(), 'sql')
+
+
+def read_sql():
+    with open(os.path.join(SQL_DIR, 'tw_daily_futures.sql')) as file:
+        sql = file.read()
+    return sql
+
 
 with DAG(dag_id='tw_daily_futures',
          start_date=datetime(2020, 12, 1),
@@ -19,7 +30,7 @@ with DAG(dag_id='tw_daily_futures',
     def download_daily_futures_data():
         context = get_current_context()
         ed = context.get('execution_date', None)
-        if ed is not None:
+        if ed is None:
             raise ValueError('execution date is not given')
 
         file_name = f"Daily_{ed.strftime('%Y_%m_%d')}.zip"
@@ -29,16 +40,21 @@ with DAG(dag_id='tw_daily_futures',
         # download file
         file_path = os.path.join(DATA_DIR, file_name)
         with open(file_path, 'wb') as file:
-            file.write(response.text)
+            file.write(response.content)
 
         # unzip file
-        with open(file_path, 'r') as zipfile:
+        with ZipFile(file_path, 'r') as zipfile:
             zipfile.extractall(DATA_DIR)
-        return file_path
+        return file_path.replace('.zip', '.csv')
 
 
-    @task
+    @task()
     def transform(file_path: str):
+        """transform futures tick data to be o,h,l,c format"""
+        context = get_current_context()
+        ed = context.get('execution_date', None)
+        ed = ed.strftime('')
+
         cols = ['txn_date', 'commodity_id', 'expired_date', 'txn_time', 'price',
                 'volume', 'near_price', 'far_price', 'call_auction']
         df = pd.read_csv(file_path, skiprows=1, names=cols, encoding='big5', dtype=str)
@@ -70,15 +86,30 @@ with DAG(dag_id='tw_daily_futures',
 
         txn_df.reset_index(['commodity_id', 'expired_date'], inplace=True)
 
-        # output_filepath = os.path.join(self.data_dir, f'futures_1min_{ed}.csv')
-        # txn_df.to_csv(output_filepath)
-        # self.logger.info('resample data to 1min')
-        # return output_filepath
+        output_filepath = os.path.join(DATA_DIR, f'futures_1min_{ed}.csv')
+        txn_df.to_csv(output_filepath)
+        return output_filepath
 
 
-    @task
-    def load():
-        pass
+    @task()
+    def load_stage(file_path):
+        bulk_sql = f'''
+        truncate table futures.txn_stage;
 
-if __name__ == '__main__':
-    download_daily_futures_data()
+        COPY futures.txn_stage
+            FROM '{file_path}'
+            (HEADER TRUE, FORMAT CSV, ENCODING 'UTF8');
+        '''
+
+        hook = PostgresHook(postgres_conn_id='trading')
+        hook.run(bulk_sql)
+
+
+    # task flow
+    extract = download_daily_futures_data()
+    transform = transform(extract)
+    load = load_stage(transform)
+
+    load_main = PostgresOperator(task_id='load_main', sql=read_sql(), postgres_conn_id='trading')
+
+    load >> load_main

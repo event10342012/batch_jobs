@@ -3,7 +3,7 @@ with temp as (
            commodity_id,
            min(expired_date) as expired_date
     from trading.futures.txn_stage
-    where datetime >= now() - interval '30 days' and length(expired_date) = 6
+    where length(expired_date) = 6
     group by datetime, commodity_id
 ),
      main as (
