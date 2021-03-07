@@ -1,0 +1,96 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+      TZ: 'Asia/Taipei'
+      PGTZ: 'Asia/Taipei'
+    volumes:
+      - ./db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ 'CMD', 'pg_isready', '-U', 'airflow' ]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 30s
+      retries: 50
+    restart: always
+
+  airflow-webserver:
+    image: airflow2:v1
+    ports:
+      - 8080:8080
+    env_file:
+      - .env
+    command: [ 'airflow', 'webserver' ]
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  airflow-scheduler:
+    image: airflow2:v1
+    env_file:
+      - .env
+    command: [ 'airflow', 'scheduler' ]
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  airflow-worker:
+    image: airflow2:v1
+    env_file:
+      - .env
+    command: [ 'airflow', 'celery',  'worker' ]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  flower:
+    image: airflow2:v1
+    command: [ 'airflow', 'celery', 'flower' ]
+    ports:
+      - 5555:5555
+    env_file:
+      - .env
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:5555/" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+
+  airflow-init:
+    image: airflow2:v1
+    command: version
+    env_file:
+      - .env
+    environment:
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
