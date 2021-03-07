@@ -138,3 +138,6 @@ src/webserver_config.py
 src/airflow.db
 src/logs
 src/data
+
+# postgres
+db
