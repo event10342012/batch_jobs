@@ -15,7 +15,7 @@ RUN curl https://packages.microsoft.com/config/debian/10/prod.list > /etc/apt/so
     && source ~/.bashrc \
     && apt-get install -y unixodbc-dev libgssapi-krb5-2 gcc g++ \
     && pip install --upgrade pip \
-    && pip install pyodbc apache-airflow[postgres,microsoft.mssql,celery,redis,rabbitmq,ftp,odbc] \
+    && pip install apache-airflow[postgres,microsoft.mssql,celery,redis,rabbitmq,ftp,odbc] \
     && pip cache purge \
     && apt-get clean
 
