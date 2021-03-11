@@ -1,5 +1,23 @@
 version: '3'
 
+x-airflow-common:
+  &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-airflow2:v1}
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
+    PYTHONPATH: '/opt/airflow'
+  volumes:
+    - ./src:/opt/airflow
+  user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
 services:
   postgres:
     image: postgres:13
@@ -29,7 +47,7 @@ services:
     restart: always
 
   airflow-webserver:
-    image: airflow2:v1
+    <<: *airflow-common
     ports:
       - 8080:8080
     env_file:
@@ -41,37 +59,24 @@ services:
       timeout: 10s
       retries: 5
     restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+    extra_hosts:
+      - host.
 
   airflow-scheduler:
-    image: airflow2:v1
+    <<: *airflow-common
     env_file:
       - .env
     command: [ 'airflow', 'scheduler' ]
     restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
 
   airflow-worker:
-    image: airflow2:v1
+    <<: *airflow-common
     env_file:
       - .env
     command: [ 'airflow', 'celery',  'worker' ]
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
 
   flower:
-    image: airflow2:v1
+    <<: *airflow-common
     command: [ 'airflow', 'celery', 'flower' ]
     ports:
       - 5555:5555
@@ -83,14 +88,3 @@ services:
       timeout: 10s
       retries: 5
     restart: always
-
-  airflow-init:
-    image: airflow2:v1
-    command: version
-    env_file:
-      - .env
-    environment:
-      _AIRFLOW_DB_UPGRADE: 'true'
-      _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
-      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
